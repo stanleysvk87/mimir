@@ -1,0 +1,42 @@
+services:
+  backend:
+    build: ./backend
+    environment:
+      MIMIR_PASSWORD: ${MIMIR_PASSWORD:?set MIMIR_PASSWORD in .env}
+      # Temporary bypass of the login screen entirely -- see auth.py.
+      MIMIR_AUTH_DISABLED: ${MIMIR_AUTH_DISABLED:-false}
+      # "auto" tries claude CLI, then codex CLI, then the Anthropic API key
+      # below -- whichever is actually available on this host.
+      MIMIR_AI_PROVIDER_MODE: ${MIMIR_AI_PROVIDER_MODE:-auto}
+      MIMIR_ANTHROPIC_API_KEY: ${MIMIR_ANTHROPIC_API_KEY:-}
+      # Optional: base URL of a Sindri instance, so entries with a
+      # sindri_script_id render as a real clickable link. Empty = no link.
+      MIMIR_SINDRI_URL: ${MIMIR_SINDRI_URL:-}
+      # claude/codex are installed as version-pinned standalone binaries
+      # reached through a symlink -- mirror the real host paths inside the
+      # container (same absolute paths) so every symlink resolves exactly
+      # like it does on the host, version bumps included.
+      HOME: ${HOME}
+      PATH: ${HOME}/.local/bin:/usr/local/sbin:/usr/local/bin:/usr/sbin:/usr/bin:/sbin:/bin
+    volumes:
+      - mimir-data:/data
+      # AI generate/recall via an existing claude/codex CLI login instead
+      # of an API key.
+      - ${HOME}/.claude:${HOME}/.claude:ro
+      - ${HOME}/.claude.json:${HOME}/.claude.json:ro
+      - ${HOME}/.local/bin:${HOME}/.local/bin:ro
+      - ${HOME}/.local/share/claude:${HOME}/.local/share/claude:ro
+      - ${HOME}/.codex:${HOME}/.codex
+    restart: unless-stopped
+
+  frontend:
+    build: ./frontend
+    depends_on:
+      backend:
+        condition: service_healthy
+    ports:
+      - "${MIMIR_PORT:-8430}:80"
+    restart: unless-stopped
+
+volumes:
+  mimir-data:
