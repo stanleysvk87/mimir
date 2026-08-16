@@ -1,18 +1,27 @@
 import { useEffect, useMemo, useState } from 'react'
 import { api } from '../lib/api.js'
+import { useI18n } from '../i18n/I18nContext.jsx'
 import Markdown from '../lib/Markdown.jsx'
+import { looksStructured } from '../lib/textShape.js'
 
-const CATEGORIES = [
-  { key: 'product', label: 'Products' },
-  { key: 'topic-note', label: 'Topic notes' },
-  { key: 'systemd-service', label: 'Systemd services' },
-  { key: 'experiment', label: 'Experiments' },
-  { key: 'midgardnet-variant', label: 'Midgardnet variants' },
-  { key: 'client-work', label: 'Client work' },
-  { key: 'resolved', label: 'Resolved' },
+const CATEGORY_KEYS = [
+  'product',
+  'topic-note',
+  'systemd-service',
+  'experiment',
+  'midgardnet-variant',
+  'client-work',
+  'resolved',
 ]
 
+// Bulk-imported by the MidgardOps notification scheduler every few
+// minutes -- real value as raw audit trail, but at full weight in the
+// default History view they bury the human-written entries. Collapsed
+// separately below instead of dropped.
+const AUTO_SOURCE_TYPE = 'midgardops_audit'
+
 export default function Projects() {
+  const { t } = useI18n()
   const [projects, setProjects] = useState([])
   const [category, setCategory] = useState('product')
   const [selected, setSelected] = useState(null)
@@ -59,19 +68,21 @@ export default function Projects() {
   }, [projects])
 
   const visible = useMemo(() => projects.filter((p) => p.category === category), [projects, category])
+  const humanEntries = useMemo(() => entries.filter((e) => e.source_type !== AUTO_SOURCE_TYPE), [entries])
+  const autoEntries = useMemo(() => entries.filter((e) => e.source_type === AUTO_SOURCE_TYPE), [entries])
 
   return (
     <div className="flex">
       <div className="w-64 border-r border-[var(--color-border)] p-5 flex-none sticky top-0 h-screen overflow-y-auto">
-        <h2 className="text-xs uppercase tracking-wide text-[var(--color-text-tertiary)] mb-3">Projects</h2>
+        <h2 className="text-xs uppercase tracking-wide text-[var(--color-text-tertiary)] mb-3">{t.projects.header}</h2>
         <div className="flex flex-wrap gap-1 mb-4">
-          {CATEGORIES.filter((c) => counts[c.key]).map((c) => (
+          {CATEGORY_KEYS.filter((key) => counts[key]).map((key) => (
             <button
-              key={c.key}
-              onClick={() => { setCategory(c.key); setSelected(null) }}
-              className={`px-2 py-1 rounded-md text-xs ${category === c.key ? 'bg-white/10 text-[var(--color-text-primary)]' : 'text-[var(--color-text-tertiary)] hover:bg-white/5'}`}
+              key={key}
+              onClick={() => { setCategory(key); setSelected(null) }}
+              className={`px-2 py-1 rounded-md text-xs ${category === key ? 'bg-white/10 text-[var(--color-text-primary)]' : 'text-[var(--color-text-tertiary)] hover:bg-white/5'}`}
             >
-              {c.label} ({counts[c.key]})
+              {t.projects.categories[key]} ({counts[key]})
             </button>
           ))}
         </div>
@@ -85,12 +96,12 @@ export default function Projects() {
               {p.name}
             </button>
           ))}
-          {visible.length === 0 && <p className="text-sm text-[var(--color-text-tertiary)]">No projects yet.</p>}
+          {visible.length === 0 && <p className="text-sm text-[var(--color-text-tertiary)]">{t.projects.noProjects}</p>}
         </div>
       </div>
 
       <div className="flex-1 p-8 max-w-3xl">
-        {!selected && <p className="text-sm text-[var(--color-text-tertiary)]">Pick a project on the left.</p>}
+        {!selected && <p className="text-sm text-[var(--color-text-tertiary)]">{t.projects.pickProject}</p>}
         {selected && (
           <>
             <div className="flex items-center gap-2 text-xs text-[var(--color-success)] mb-2">
@@ -104,7 +115,7 @@ export default function Projects() {
                 disabled={handoffLoading}
                 className="px-3 py-1.5 rounded-lg text-xs bg-[var(--color-panel-raised)] border border-[var(--color-border-strong)] text-[var(--color-text-secondary)] hover:border-[var(--color-gold)] disabled:opacity-50 flex-none"
               >
-                {handoffLoading ? 'Writing briefing…' : 'Generate handoff briefing'}
+                {handoffLoading ? t.projects.writingBriefing : t.projects.generateHandoff}
               </button>
             </div>
             {selected.description && (
@@ -116,7 +127,7 @@ export default function Projects() {
 
             {handoff && (
               <div className="bg-[var(--color-panel)] border border-[var(--color-gold)]/30 rounded-xl p-4 mb-8">
-                <div className="text-xs uppercase tracking-wide text-[var(--color-gold)] mb-2">Handoff briefing</div>
+                <div className="text-xs uppercase tracking-wide text-[var(--color-gold)] mb-2">{t.projects.handoffBriefing}</div>
                 <Markdown text={handoff.briefing} className="text-sm text-[var(--color-text-secondary)] max-w-[70ch]" />
               </div>
             )}
@@ -124,23 +135,23 @@ export default function Projects() {
             {selected.has_notes && (
               <details className="mb-8">
                 <summary className="text-xs uppercase tracking-wide text-[var(--color-text-tertiary)] cursor-pointer select-none">
-                  Build notes
+                  {t.projects.buildNotes}
                 </summary>
                 {detail ? (
                   <Markdown text={detail.notes} className="text-sm text-[var(--color-text-secondary)] max-w-[70ch] mt-3" />
                 ) : (
-                  <p className="text-sm text-[var(--color-text-tertiary)] mt-3">Loading…</p>
+                  <p className="text-sm text-[var(--color-text-tertiary)] mt-3">{t.projects.loading}</p>
                 )}
               </details>
             )}
 
             <h2 className="text-xs uppercase tracking-wide text-[var(--color-text-tertiary)] mb-3 mt-7">
-              Timeline <span className="normal-case text-[var(--color-text-tertiary)]/70">— entries, git commits &amp; terminal history, one search</span>
+              {t.projects.timelineTitle} <span className="normal-case text-[var(--color-text-tertiary)]/70">{t.projects.timelineSubtitle}</span>
             </h2>
             <input
               value={timelineQ}
               onChange={(e) => runTimelineSearch(e.target.value)}
-              placeholder='e.g. "core" — find everywhere this project ever touched it'
+              placeholder={t.projects.timelinePlaceholder}
               className="w-full bg-[var(--color-panel)] border border-[var(--color-border)] rounded-lg px-4 py-2.5 text-sm outline-none focus:border-[var(--color-gold)] mb-4"
             />
             {timeline === null && (
@@ -148,7 +159,7 @@ export default function Projects() {
                 onClick={() => runTimelineSearch('')}
                 className="text-xs text-[var(--color-text-tertiary)] hover:text-[var(--color-text-secondary)] mb-7"
               >
-                Load full timeline →
+                {t.projects.loadFullTimeline}
               </button>
             )}
             {timeline !== null && (
@@ -167,25 +178,47 @@ export default function Projects() {
                     <p className="text-sm text-[var(--color-text-secondary)] whitespace-pre-wrap line-clamp-3">{item.text}</p>
                   </div>
                 ))}
-                {timeline.length === 0 && <p className="text-sm text-[var(--color-text-tertiary)]">Nothing matched.</p>}
+                {timeline.length === 0 && <p className="text-sm text-[var(--color-text-tertiary)]">{t.projects.nothingMatched}</p>}
               </div>
             )}
 
-            <h2 className="text-xs uppercase tracking-wide text-[var(--color-text-tertiary)] mb-3 mt-7">History</h2>
+            <h2 className="text-xs uppercase tracking-wide text-[var(--color-text-tertiary)] mb-3 mt-7">{t.projects.history}</h2>
             <div className="flex flex-col gap-3">
-              {entries.map((e) => (
+              {humanEntries.map((e) => (
                 <div key={e.id} className="bg-[var(--color-panel)] border border-[var(--color-border)] rounded-xl p-4">
                   <div className="text-xs text-[var(--color-text-tertiary)] font-[family-name:var(--font-mono)] mb-1">
                     {e.timestamp.slice(0, 16).replace('T', ' ')} · {e.machine}
                   </div>
                   <h3 className="font-semibold text-sm mb-1">{e.title}</h3>
-                  <Markdown text={e.body} className="text-sm text-[var(--color-text-secondary)]" />
+                  <Markdown
+                    text={e.body}
+                    className={`text-sm text-[var(--color-text-secondary)] ${looksStructured(e.body) ? 'font-[family-name:var(--font-mono)]' : ''}`}
+                  />
                 </div>
               ))}
-              {entries.length === 0 && <p className="text-sm text-[var(--color-text-tertiary)]">No entries yet.</p>}
+              {humanEntries.length === 0 && <p className="text-sm text-[var(--color-text-tertiary)]">{t.projects.noEntries}</p>}
             </div>
 
-            <h2 className="text-xs uppercase tracking-wide text-[var(--color-text-tertiary)] mb-3 mt-7">Open items</h2>
+            {autoEntries.length > 0 && (
+              <details className="mt-4">
+                <summary className="text-xs text-[var(--color-text-tertiary)] cursor-pointer select-none py-1">
+                  {t.projects.autoNotifications.replace('{n}', autoEntries.length)}
+                </summary>
+                <div className="flex flex-col gap-3 mt-3">
+                  {autoEntries.map((e) => (
+                    <div key={e.id} className="bg-[var(--color-panel)] border border-[var(--color-border)] rounded-xl p-4 opacity-70">
+                      <div className="text-xs text-[var(--color-text-tertiary)] font-[family-name:var(--font-mono)] mb-1">
+                        {e.timestamp.slice(0, 16).replace('T', ' ')} · {e.machine}
+                      </div>
+                      <h3 className="font-semibold text-sm mb-1">{e.title}</h3>
+                      <Markdown text={e.body} className="text-sm text-[var(--color-text-secondary)] font-[family-name:var(--font-mono)]" />
+                    </div>
+                  ))}
+                </div>
+              </details>
+            )}
+
+            <h2 className="text-xs uppercase tracking-wide text-[var(--color-text-tertiary)] mb-3 mt-7">{t.projects.openItems}</h2>
             <div className="flex flex-col">
               {checklist.map((c) => (
                 <div key={c.id} className="flex items-start gap-2 py-2 border-t border-[var(--color-border)] first:border-t-0 first:pt-0 text-sm">
@@ -195,7 +228,7 @@ export default function Projects() {
                   <span className={c.status === 'done' ? 'line-through text-[var(--color-text-tertiary)]' : ''}>{c.text}</span>
                 </div>
               ))}
-              {checklist.length === 0 && <p className="text-sm text-[var(--color-text-tertiary)]">Nothing open.</p>}
+              {checklist.length === 0 && <p className="text-sm text-[var(--color-text-tertiary)]">{t.projects.nothingOpen}</p>}
             </div>
           </>
         )}

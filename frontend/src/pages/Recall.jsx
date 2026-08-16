@@ -1,8 +1,10 @@
 import { useState } from 'react'
 import { api } from '../lib/api.js'
+import { useI18n } from '../i18n/I18nContext.jsx'
 import Markdown from '../lib/Markdown.jsx'
 
 export default function Recall() {
+  const { t } = useI18n()
   const [question, setQuestion] = useState('')
   const [messages, setMessages] = useState([])
   const [loading, setLoading] = useState(false)
@@ -24,7 +26,7 @@ export default function Recall() {
 
   return (
     <div className="p-8 max-w-2xl">
-      <h1 className="text-2xl mb-6">AI Recall</h1>
+      <h1 className="text-2xl mb-6">{t.recall.header}</h1>
       <div className="flex flex-col gap-5 mb-6">
         {messages.map((m, i) => (
           <div key={i} className="flex gap-2.5 items-start">
@@ -41,21 +43,21 @@ export default function Recall() {
                 <Markdown text={m.text} />
                 {typeof m.matched === 'number' && (
                   <div className="text-xs text-[var(--color-text-tertiary)] mt-2">
-                    based on {m.matched} matching entries
+                    {t.recall.matchedEntries.replace('{n}', m.matched)}
                   </div>
                 )}
               </div>
             )}
           </div>
         ))}
-        {loading && <p className="text-sm text-[var(--color-text-tertiary)]">Thinking…</p>}
+        {loading && <p className="text-sm text-[var(--color-text-tertiary)]">{t.recall.thinking}</p>}
       </div>
 
       <form onSubmit={ask} className="flex gap-2 items-center bg-[var(--color-panel)] border border-[var(--color-border)] rounded-xl px-3.5 py-2.5">
         <input
           value={question}
           onChange={(e) => setQuestion(e.target.value)}
-          placeholder="Ask anything from your history…"
+          placeholder={t.recall.placeholder}
           className="flex-1 bg-transparent outline-none text-sm"
         />
         <button type="submit" className="w-7 h-7 rounded-lg bg-[var(--color-gold)] text-[#241505] flex items-center justify-center">

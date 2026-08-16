@@ -1,14 +1,21 @@
 import { useEffect, useRef, useState } from 'react'
 import { api } from '../lib/api.js'
+import { useI18n } from '../i18n/I18nContext.jsx'
 
 export default function Terminal() {
+  const { t } = useI18n()
   const [tab, setTab] = useState('search') // search | review
   const [q, setQ] = useState('')
   const [results, setResults] = useState(null)
   const [reviewQueue, setReviewQueue] = useState([])
   const [reviewLoading, setReviewLoading] = useState(false)
+  const [hasAnyData, setHasAnyData] = useState(null) // null = not checked yet
   const timerRef = useRef(null)
   const requestSeq = useRef(0)
+
+  useEffect(() => {
+    api.listTerminalSessions({ limit: 1 }).then((sessions) => setHasAnyData(sessions.length > 0))
+  }, [])
 
   function onChange(value) {
     setQ(value)
@@ -43,13 +50,13 @@ export default function Terminal() {
           onClick={() => setTab('search')}
           className={`px-3 py-1.5 rounded-lg text-sm ${tab === 'search' ? 'bg-white/10 text-[var(--color-text-primary)]' : 'text-[var(--color-text-tertiary)] hover:bg-white/5'}`}
         >
-          Search
+          {t.terminal.searchTab}
         </button>
         <button
           onClick={() => setTab('review')}
           className={`px-3 py-1.5 rounded-lg text-sm ${tab === 'review' ? 'bg-white/10 text-[var(--color-text-primary)]' : 'text-[var(--color-text-tertiary)] hover:bg-white/5'}`}
         >
-          Needs review{reviewQueue.length > 0 ? ` (${reviewQueue.length})` : ''}
+          {t.terminal.needsReviewTab}{reviewQueue.length > 0 ? ` (${reviewQueue.length})` : ''}
         </button>
       </div>
 
@@ -58,14 +65,18 @@ export default function Terminal() {
           <input
             value={q}
             onChange={(e) => onChange(e.target.value)}
-            placeholder="Search raw terminal history…"
+            placeholder={t.terminal.searchPlaceholder}
             autoFocus
             className="w-full bg-[var(--color-panel)] border border-[var(--color-border)] rounded-lg px-4 py-3 text-sm outline-none focus:border-[var(--color-gold)] mb-6"
           />
 
-          {results && (
+          {hasAnyData === false && (
+            <p className="text-sm text-[var(--color-text-tertiary)] mb-4">{t.terminal.noDataYet}</p>
+          )}
+
+          {hasAnyData !== false && results && (
             <p className="text-sm text-[var(--color-text-secondary)] mb-4">
-              {results.length} match{results.length === 1 ? '' : 'es'}
+              {results.length} {results.length === 1 ? t.terminal.matchWord : t.terminal.matchWordPlural}
             </p>
           )}
 
@@ -81,8 +92,8 @@ export default function Terminal() {
                 </pre>
               </div>
             ))}
-            {results && results.length === 0 && (
-              <p className="text-sm text-[var(--color-text-tertiary)]">Nothing found.</p>
+            {hasAnyData !== false && results && results.length === 0 && (
+              <p className="text-sm text-[var(--color-text-tertiary)]">{t.terminal.nothingFound}</p>
             )}
           </div>
         </>
@@ -91,12 +102,11 @@ export default function Terminal() {
       {tab === 'review' && (
         <div className="flex flex-col gap-4">
           <p className="text-sm text-[var(--color-text-secondary)]">
-            These chunks were quarantined because redaction touched them —
-            invisible to search until approved.
+            {t.terminal.reviewIntro}
           </p>
-          {reviewLoading && <p className="text-sm text-[var(--color-text-tertiary)]">Loading…</p>}
+          {reviewLoading && <p className="text-sm text-[var(--color-text-tertiary)]">{t.terminal.loading}</p>}
           {!reviewLoading && reviewQueue.length === 0 && (
-            <p className="text-sm text-[var(--color-text-tertiary)]">Nothing waiting for review.</p>
+            <p className="text-sm text-[var(--color-text-tertiary)]">{t.terminal.nothingWaiting}</p>
           )}
           {reviewQueue.map((c) => (
             <ReviewCard key={c.id} chunk={c} onApprove={approve} />
@@ -108,6 +118,7 @@ export default function Terminal() {
 }
 
 function ReviewCard({ chunk, onApprove }) {
+  const { t } = useI18n()
   const [text, setText] = useState(chunk.text)
   const [busy, setBusy] = useState(false)
 
@@ -135,7 +146,7 @@ function ReviewCard({ chunk, onApprove }) {
         }}
         className="px-3 py-1.5 rounded-lg text-sm bg-[var(--color-gold)] text-[#241505] disabled:opacity-50"
       >
-        {busy ? 'Approving…' : 'Approve (make searchable)'}
+        {busy ? t.terminal.approving : t.terminal.approve}
       </button>
     </div>
   )

@@ -42,6 +42,7 @@ export const api = {
     const qs = params.toString()
     return request(`/entries${qs ? `?${qs}` : ''}`)
   },
+  listMachines: () => request('/entries/machines'),
   listDays: () => request('/entries/days'),
   syncStatus: () => request('/entries/sync-status'),
   getEntry: (id) => request(`/entries/${id}`),

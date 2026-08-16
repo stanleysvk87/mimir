@@ -28,8 +28,12 @@ class CodexCLIProvider:
         with tempfile.NamedTemporaryFile(suffix=".txt", delete=False) as out_f:
             output_path = Path(out_f.name)
 
+        # Prompt goes over stdin, not as an argv element -- same argv-size
+        # risk as the claude CLI provider (recall/digest prompts can carry
+        # 40+ entries' worth of text). Omitting the positional PROMPT arg
+        # makes codex read it from stdin instead.
         cmd = [
-            "codex", "exec", prompt,
+            "codex", "exec",
             "-s", "read-only",
             "--skip-git-repo-check",
             "--ephemeral",
@@ -37,7 +41,7 @@ class CodexCLIProvider:
         ]
 
         try:
-            proc = subprocess.run(cmd, capture_output=True, text=True, timeout=120)
+            proc = subprocess.run(cmd, input=prompt, capture_output=True, text=True, timeout=120)
         except (subprocess.TimeoutExpired, OSError) as exc:
             raise ProviderUnavailableError(f"codex exec failed: {exc}") from exc
 

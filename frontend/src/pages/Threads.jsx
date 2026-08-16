@@ -1,8 +1,10 @@
 import { useEffect, useState } from 'react'
 import { api } from '../lib/api.js'
+import { useI18n } from '../i18n/I18nContext.jsx'
 import Markdown from '../lib/Markdown.jsx'
 
 export default function Threads() {
+  const { t } = useI18n()
   const [threads, setThreads] = useState([])
   const [selected, setSelected] = useState(null)
   const [detail, setDetail] = useState(null)
@@ -29,12 +31,12 @@ export default function Threads() {
   return (
     <div className="flex">
       <div className="w-64 border-r border-[var(--color-border)] p-5 flex-none sticky top-0 h-screen overflow-y-auto">
-        <h2 className="text-xs uppercase tracking-wide text-[var(--color-text-tertiary)] mb-3">Threads</h2>
+        <h2 className="text-xs uppercase tracking-wide text-[var(--color-text-tertiary)] mb-3">{t.threads.header}</h2>
         <form onSubmit={create} className="mb-4">
           <input
             value={name}
             onChange={(e) => setName(e.target.value)}
-            placeholder="New thread name…"
+            placeholder={t.threads.newThreadPlaceholder}
             className="w-full bg-transparent border-b border-[var(--color-border)] pb-2 text-sm outline-none focus:border-[var(--color-gold)]"
           />
         </form>
@@ -49,12 +51,12 @@ export default function Threads() {
               <span className="text-xs text-[var(--color-text-tertiary)]">{th.entry_count}</span>
             </button>
           ))}
-          {threads.length === 0 && <p className="text-sm text-[var(--color-text-tertiary)]">No threads yet.</p>}
+          {threads.length === 0 && <p className="text-sm text-[var(--color-text-tertiary)]">{t.threads.noThreads}</p>}
         </div>
       </div>
 
       <div className="flex-1 p-8 max-w-3xl">
-        {!detail && <p className="text-sm text-[var(--color-text-tertiary)]">Pick a thread on the left.</p>}
+        {!detail && <p className="text-sm text-[var(--color-text-tertiary)]">{t.threads.pickThread}</p>}
         {detail && (
           <>
             <h1 className="text-2xl mb-1">{detail.thread.name}</h1>
@@ -72,7 +74,7 @@ export default function Threads() {
                 </div>
               ))}
               {detail.entries.length === 0 && (
-                <p className="text-sm text-[var(--color-text-tertiary)]">No entries linked to this thread yet.</p>
+                <p className="text-sm text-[var(--color-text-tertiary)]">{t.threads.noEntriesLinked}</p>
               )}
             </div>
           </>

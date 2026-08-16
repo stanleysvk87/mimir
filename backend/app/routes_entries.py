@@ -173,6 +173,21 @@ def list_days():
     return [r["day"] for r in rows]
 
 
+@router.get("/machines")
+def list_machines():
+    """Distinct non-empty `machine` values already in use, most recently
+    used first -- powers an autocomplete on the "+ New entry" form's free-
+    text machine field so a new entry reuses an existing name instead of
+    spawning a near-duplicate variant (e.g. "opi" vs. "opi, cez SSH na
+    opi HA recorder DB")."""
+    with get_conn() as conn:
+        rows = conn.execute(
+            "SELECT machine, MAX(timestamp) AS last_used FROM entries"
+            " WHERE machine != '' GROUP BY machine ORDER BY last_used DESC"
+        ).fetchall()
+    return [r["machine"] for r in rows]
+
+
 @router.get("/sync-status")
 def sync_status():
     """Self-check: most recent claude_session entry per machine, so a

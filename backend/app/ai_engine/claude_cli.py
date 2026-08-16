@@ -10,16 +10,22 @@ class ClaudeCLIProvider:
     name = "claude_cli"
 
     def complete(self, prompt: str) -> str:
-        # Prompt must come immediately after -p. --disallowedTools stops
-        # claude from occasionally interpreting a prompt as "write a file"
-        # instead of just returning text (same fix as Sindri's).
+        # Prompt goes over stdin, not as an argv element -- recall/digest
+        # prompts can easily carry 40+ entries' worth of text, which blows
+        # past the kernel's argv size limit (OSError [Errno 7] Argument
+        # list too long) when passed inline after -p. `claude -p` reads
+        # the prompt from stdin when none is given positionally.
+        # --disallowedTools stops claude from occasionally interpreting a
+        # prompt as "write a file" instead of just returning text (same
+        # fix as Sindri's).
         try:
             proc = subprocess.run(
                 [
-                    "claude", "-p", prompt,
+                    "claude", "-p",
                     "--output-format", "json",
                     "--disallowedTools", "Write,Edit,Bash,Read",
                 ],
+                input=prompt,
                 capture_output=True,
                 text=True,
                 timeout=120,

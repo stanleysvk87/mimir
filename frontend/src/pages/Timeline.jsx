@@ -4,6 +4,7 @@ import { api } from '../lib/api.js'
 import { useI18n } from '../i18n/I18nContext.jsx'
 import Rail from './Rail.jsx'
 import Markdown from '../lib/Markdown.jsx'
+import { looksStructured } from '../lib/textShape.js'
 
 function todayStr() {
   return new Date().toISOString().slice(0, 10)
@@ -53,9 +54,11 @@ function NewEntryForm({ onCreated, onCancel }) {
   const [commitRef, setCommitRef] = useState('')
   const [projectId, setProjectId] = useState('')
   const [projects, setProjects] = useState([])
+  const [machines, setMachines] = useState([])
 
   useEffect(() => {
     api.listProjects().then(setProjects)
+    api.listMachines().then(setMachines)
   }, [])
 
   const speech = useSpeechToText((text) => setBody((b) => (b ? `${b} ${text}` : text)))
@@ -113,7 +116,7 @@ function NewEntryForm({ onCreated, onCancel }) {
           <button
             type="button"
             onClick={speech.toggle}
-            aria-label="Voice input"
+            aria-label={t.entryForm.voiceInput}
             className={`absolute right-0 top-0 w-7 h-7 rounded-full flex items-center justify-center ${speech.listening ? 'bg-[var(--color-warning)]' : 'bg-white/5'}`}
           >
             🎙
@@ -123,7 +126,7 @@ function NewEntryForm({ onCreated, onCancel }) {
 
       {related.length > 0 && (
         <div className="text-xs text-[var(--color-text-tertiary)]">
-          You've dealt with this before:{' '}
+          {t.entryForm.dealtWithBefore}{' '}
           {related.map((r, i) => (
             <span key={r.id}>
               {i > 0 && ', '}
@@ -138,8 +141,14 @@ function NewEntryForm({ onCreated, onCancel }) {
           value={machine}
           onChange={(e) => setMachine(e.target.value)}
           placeholder={t.entryForm.machine}
+          list="machine-suggestions"
           className="bg-transparent border-b border-[var(--color-border)] pb-2 text-sm outline-none focus:border-[var(--color-gold)] w-32"
         />
+        <datalist id="machine-suggestions">
+          {machines.map((m) => (
+            <option key={m} value={m} />
+          ))}
+        </datalist>
         <select
           value={projectId}
           onChange={(e) => setProjectId(e.target.value)}
@@ -153,7 +162,7 @@ function NewEntryForm({ onCreated, onCancel }) {
         <input
           value={commitRef}
           onChange={(e) => setCommitRef(e.target.value)}
-          placeholder="commit hash"
+          placeholder={t.entryForm.commitHash}
           className="bg-transparent border-b border-[var(--color-border)] pb-2 text-sm outline-none focus:border-[var(--color-gold)] w-28 font-[family-name:var(--font-mono)]"
         />
         <input
@@ -165,10 +174,10 @@ function NewEntryForm({ onCreated, onCancel }) {
         />
         <label className="flex items-center gap-1.5 text-xs text-[var(--color-text-secondary)]">
           <input type="checkbox" checked={isSensitive} onChange={(e) => setIsSensitive(e.target.checked)} />
-          sensitive
+          {t.entryForm.sensitive}
         </label>
         <label className="text-xs text-[var(--color-text-secondary)] cursor-pointer">
-          📎 attach
+          📎 {t.entryForm.attach}
           <input type="file" accept="image/*" className="hidden" onChange={(e) => setFile(e.target.files?.[0] || null)} />
         </label>
         {file && <span className="text-xs text-[var(--color-gold-soft)]">{file.name}</span>}
@@ -299,6 +308,7 @@ export default function Timeline() {
 }
 
 function AddToThread({ entryId, threads }) {
+  const { t } = useI18n()
   const [open, setOpen] = useState(false)
   const [added, setAdded] = useState(false)
 
@@ -309,7 +319,7 @@ function AddToThread({ entryId, threads }) {
     setOpen(false)
   }
 
-  if (added) return <span className="text-xs text-[var(--color-success)]">✓ added to thread</span>
+  if (added) return <span className="text-xs text-[var(--color-success)]">{t.timeline.addedToThread}</span>
   if (!threads.length) return null
 
   return open ? (
@@ -319,7 +329,7 @@ function AddToThread({ entryId, threads }) {
       onBlur={() => setOpen(false)}
       className="bg-[var(--color-panel-raised)] border border-[var(--color-border-strong)] rounded text-xs px-1.5 py-0.5"
     >
-      <option value="">pick a thread…</option>
+      <option value="">{t.timeline.pickThread}</option>
       {threads.map((th) => (
         <option key={th.id} value={th.id}>{th.name}</option>
       ))}
@@ -330,12 +340,13 @@ function AddToThread({ entryId, threads }) {
       onClick={() => setOpen(true)}
       className="text-xs text-[var(--color-text-tertiary)] hover:text-[var(--color-blue-light)]"
     >
-      + thread
+      {t.timeline.addThread}
     </button>
   )
 }
 
 function EntryCard({ entry, threads, highlighted }) {
+  const { t } = useI18n()
   const [attachments, setAttachments] = useState([])
 
   useEffect(() => {
@@ -359,11 +370,16 @@ function EntryCard({ entry, threads, highlighted }) {
         {entry.commit_ref && (
           <span className="font-[family-name:var(--font-mono)] bg-white/5 rounded px-1.5">{entry.commit_ref}</span>
         )}
-        {entry.is_sensitive && <span className="text-[var(--color-warning)]">sensitive</span>}
+        {entry.is_sensitive && <span className="text-[var(--color-warning)]">{t.entryForm.sensitive}</span>}
         <span className="ml-auto"><AddToThread entryId={entry.id} threads={threads} /></span>
       </div>
       {entry.title && <h3 className="font-semibold text-sm mb-1">{entry.title}</h3>}
-      {entry.body && <Markdown text={entry.body} className="text-sm text-[var(--color-text-secondary)]" />}
+      {entry.body && (
+        <Markdown
+          text={entry.body}
+          className={`text-sm text-[var(--color-text-secondary)] ${looksStructured(entry.body) ? 'font-[family-name:var(--font-mono)]' : ''}`}
+        />
+      )}
       {attachments.length > 0 && (
         <div className="flex gap-2 mt-3 flex-wrap">
           {attachments.map((a) => (
