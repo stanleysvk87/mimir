@@ -104,17 +104,35 @@ def _fts_match(q: str) -> str:
     return " AND ".join('"' + t.replace('"', '""') + '"' for t in tokens)
 
 
+# Bulk-imported by the MidgardOps notification scheduler every few
+# minutes -- must match frontend/src/pages/Projects.jsx's own
+# AUTO_SOURCE_TYPE. The History view already collapses these out of
+# sight by default; _timeline_items() does the same for the merged
+# timeline/handoff feed, since a busy project (e.g. heimdall itself)
+# can have thousands of these, which used to both bury real timeline
+# entries and blow up the handoff prompt large enough to time out or
+# exceed every provider's context (checklist #956).
+_AUTO_SOURCE_TYPE = "midgardops_audit"
+
+
 def _timeline_items(
     project_id: int,
     q: str | None,
     since: str | None,
     until: str | None,
     limit: int,
+    include_auto: bool = False,
 ) -> list[dict]:
     """Core query behind both GET /{id}/timeline and GET /{id}/handoff --
-    see the timeline route's docstring for what this merges and why."""
+    see the timeline route's docstring for what this merges and why.
+    `include_auto=False` (the default) excludes _AUTO_SOURCE_TYPE rows;
+    pass True only if a caller genuinely wants automated notifications
+    mixed into the feed."""
     entry_clauses = ["e.project_id = ?"]
     entry_params: list = [project_id]
+    if not include_auto:
+        entry_clauses.append("e.source_type IS NOT ?")
+        entry_params.append(_AUTO_SOURCE_TYPE)
     if q and q.strip():
         entry_clauses.append("e.id IN (SELECT rowid FROM entries_fts WHERE entries_fts MATCH ?)")
         entry_params.append(_fts_match(q))
@@ -184,6 +202,7 @@ def project_timeline(
     since: str | None = None,
     until: str | None = None,
     limit: int = 300,
+    include_auto: bool = False,
 ):
     """The 'return to a project after a year' view: merges entries
     (written summaries -- including auto-logged git commits, source_type
@@ -193,8 +212,10 @@ def project_timeline(
     filters BOTH sources by the same FTS5 query, so e.g. `?q=core` finds
     every entry, commit, and terminal excerpt that ever mentioned "core"
     for this project -- the actual answer to "where did I touch core and
-    when."""
-    return _timeline_items(project_id, q, since, until, limit)
+    when." Bulk-imported MidgardOps notifications (_AUTO_SOURCE_TYPE) are
+    excluded by default -- same noise the History view already collapses
+    -- pass ?include_auto=true to see them mixed in anyway."""
+    return _timeline_items(project_id, q, since, until, limit, include_auto)
 
 
 @router.get("/{project_id}/handoff")
