@@ -201,6 +201,19 @@ def delete_session(session_id: int):
     return {"ok": True}
 
 
+@router.get("/chunks/needs-review", response_model=list[TerminalChunkOut])
+def list_needs_review(limit: int = 50):
+    """The actual review queue (not just its size) -- backs the frontend's
+    review screen. Deliberately no snippet/redaction here: to review and
+    approve a chunk you need to see its real (already-redacted) text."""
+    with get_conn() as conn:
+        rows = conn.execute(
+            "SELECT * FROM terminal_chunks WHERE needs_review = 1 ORDER BY started_at DESC LIMIT ?",
+            (limit,),
+        ).fetchall()
+    return [_chunk_row_to_out(r) for r in rows]
+
+
 @router.get("/chunks/needs-review/count")
 def needs_review_count():
     """Size of the redaction review queue -- see

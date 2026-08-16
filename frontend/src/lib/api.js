@@ -1,8 +1,16 @@
+// DELETE endpoints require MIMIR_ADMIN_PASSWORD (see backend/app/auth.py
+// require_admin) as a separate secret from the login session -- callers
+// pass it in explicitly (e.g. typed into a confirm dialog) rather than it
+// living anywhere in frontend state.
+function adminHeader(adminPassword) {
+  return adminPassword ? { 'X-Admin-Password': adminPassword } : {}
+}
+
 async function request(path, options = {}) {
   const res = await fetch(`/api${path}`, {
     credentials: 'include',
-    headers: { 'Content-Type': 'application/json' },
     ...options,
+    headers: { 'Content-Type': 'application/json', ...(options.headers || {}) },
   })
   if (res.status === 401) {
     const err = new Error('unauthorized')
@@ -41,7 +49,8 @@ export const api = {
     request('/entries', { method: 'POST', body: JSON.stringify(payload) }),
   updateEntry: (id, fields) =>
     request(`/entries/${id}`, { method: 'PATCH', body: JSON.stringify(fields) }),
-  deleteEntry: (id) => request(`/entries/${id}`, { method: 'DELETE' }),
+  deleteEntry: (id, adminPassword) =>
+    request(`/entries/${id}`, { method: 'DELETE', headers: adminHeader(adminPassword) }),
 
   listProjects: ({ category } = {}) => {
     const params = new URLSearchParams()
@@ -101,4 +110,39 @@ export const api = {
     request('/ai/recall', { method: 'POST', body: JSON.stringify({ question, day }) }),
 
   appSettings: () => request('/settings'),
+
+  // tmux-archive terminal search/review
+  terminalSearch: (q, projectId) => {
+    const params = new URLSearchParams({ q })
+    if (projectId) params.set('project_id', projectId)
+    return request(`/terminal/search?${params.toString()}`)
+  },
+  listTerminalSessions: ({ projectId, limit } = {}) => {
+    const params = new URLSearchParams()
+    if (projectId) params.set('project_id', projectId)
+    if (limit) params.set('limit', limit)
+    const qs = params.toString()
+    return request(`/terminal/sessions${qs ? `?${qs}` : ''}`)
+  },
+  getSessionChunks: (sessionId) => request(`/terminal/sessions/${sessionId}/chunks`),
+  needsReviewList: () => request('/terminal/chunks/needs-review'),
+  needsReviewCount: () => request('/terminal/chunks/needs-review/count'),
+  approveChunk: (chunkId, text) =>
+    request(`/terminal/chunks/${chunkId}/approve`, {
+      method: 'PATCH',
+      body: JSON.stringify(text != null ? { text } : {}),
+    }),
+  deleteTerminalSession: (id, adminPassword) =>
+    request(`/terminal/sessions/${id}`, { method: 'DELETE', headers: adminHeader(adminPassword) }),
+
+  // per-project cross-source timeline + AI handoff briefing
+  projectTimeline: (projectId, { q, since, until } = {}) => {
+    const params = new URLSearchParams()
+    if (q) params.set('q', q)
+    if (since) params.set('since', since)
+    if (until) params.set('until', until)
+    const qs = params.toString()
+    return request(`/projects/${projectId}/timeline${qs ? `?${qs}` : ''}`)
+  },
+  projectHandoff: (projectId) => request(`/projects/${projectId}/handoff`),
 }

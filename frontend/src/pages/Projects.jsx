@@ -19,6 +19,10 @@ export default function Projects() {
   const [detail, setDetail] = useState(null)
   const [entries, setEntries] = useState([])
   const [checklist, setChecklist] = useState([])
+  const [timelineQ, setTimelineQ] = useState('')
+  const [timeline, setTimeline] = useState(null)
+  const [handoff, setHandoff] = useState(null)
+  const [handoffLoading, setHandoffLoading] = useState(false)
 
   useEffect(() => {
     api.listProjects().then(setProjects)
@@ -27,10 +31,26 @@ export default function Projects() {
   useEffect(() => {
     if (!selected) return
     setDetail(null)
+    setTimeline(null)
+    setTimelineQ('')
+    setHandoff(null)
     api.getProject(selected.id).then(setDetail)
     api.listEntries({ projectId: selected.id, limit: 500 }).then(setEntries)
     api.listChecklist({ projectId: selected.id }).then(setChecklist)
   }, [selected])
+
+  function runTimelineSearch(q) {
+    setTimelineQ(q)
+    if (!selected) return
+    api.projectTimeline(selected.id, { q: q || undefined }).then(setTimeline)
+  }
+
+  function generateHandoff() {
+    if (!selected) return
+    setHandoffLoading(true)
+    setHandoff(null)
+    api.projectHandoff(selected.id).then(setHandoff).finally(() => setHandoffLoading(false))
+  }
 
   const counts = useMemo(() => {
     const c = {}
@@ -77,12 +97,28 @@ export default function Projects() {
               <span className="w-1.5 h-1.5 rounded-full bg-[var(--color-success)]" />
               {selected.status}
             </div>
-            <h1 className="text-2xl mb-3">{selected.name}</h1>
+            <div className="flex items-center justify-between gap-3 mb-3">
+              <h1 className="text-2xl">{selected.name}</h1>
+              <button
+                onClick={generateHandoff}
+                disabled={handoffLoading}
+                className="px-3 py-1.5 rounded-lg text-xs bg-[var(--color-panel-raised)] border border-[var(--color-border-strong)] text-[var(--color-text-secondary)] hover:border-[var(--color-gold)] disabled:opacity-50 flex-none"
+              >
+                {handoffLoading ? 'Writing briefing…' : 'Generate handoff briefing'}
+              </button>
+            </div>
             {selected.description && (
               <Markdown text={selected.description} className="text-sm text-[var(--color-text-secondary)] max-w-[70ch] mb-4" />
             )}
             {selected.key_paths && (
-              <p className="text-xs text-[var(--color-text-tertiary)] font-[family-name:var(--font-mono)] mb-8">{selected.key_paths}</p>
+              <p className="text-xs text-[var(--color-text-tertiary)] font-[family-name:var(--font-mono)] mb-4">{selected.key_paths}</p>
+            )}
+
+            {handoff && (
+              <div className="bg-[var(--color-panel)] border border-[var(--color-gold)]/30 rounded-xl p-4 mb-8">
+                <div className="text-xs uppercase tracking-wide text-[var(--color-gold)] mb-2">Handoff briefing</div>
+                <Markdown text={handoff.briefing} className="text-sm text-[var(--color-text-secondary)] max-w-[70ch]" />
+              </div>
             )}
 
             {selected.has_notes && (
@@ -96,6 +132,43 @@ export default function Projects() {
                   <p className="text-sm text-[var(--color-text-tertiary)] mt-3">Loading…</p>
                 )}
               </details>
+            )}
+
+            <h2 className="text-xs uppercase tracking-wide text-[var(--color-text-tertiary)] mb-3 mt-7">
+              Timeline <span className="normal-case text-[var(--color-text-tertiary)]/70">— entries, git commits &amp; terminal history, one search</span>
+            </h2>
+            <input
+              value={timelineQ}
+              onChange={(e) => runTimelineSearch(e.target.value)}
+              placeholder='e.g. "core" — find everywhere this project ever touched it'
+              className="w-full bg-[var(--color-panel)] border border-[var(--color-border)] rounded-lg px-4 py-2.5 text-sm outline-none focus:border-[var(--color-gold)] mb-4"
+            />
+            {timeline === null && (
+              <button
+                onClick={() => runTimelineSearch('')}
+                className="text-xs text-[var(--color-text-tertiary)] hover:text-[var(--color-text-secondary)] mb-7"
+              >
+                Load full timeline →
+              </button>
+            )}
+            {timeline !== null && (
+              <div className="flex flex-col mb-7">
+                {timeline.map((item) => (
+                  <div key={`${item.type}-${item.id}`} className="border-b border-[var(--color-border)] py-3">
+                    <div className="text-xs text-[var(--color-text-tertiary)] font-[family-name:var(--font-mono)] mb-1 flex items-center gap-1.5">
+                      <span className={`px-1.5 py-0.5 rounded text-[10px] uppercase ${
+                        item.type === 'terminal' ? 'bg-[var(--color-panel-raised)] border border-[var(--color-border-strong)]'
+                        : item.type === 'git_commit' ? 'bg-[var(--color-gold)]/10 border border-[var(--color-gold)]/25 text-[var(--color-gold)]'
+                        : 'bg-white/5'
+                      }`}>{item.type.replace('_', ' ')}</span>
+                      {item.timestamp.slice(0, 16).replace('T', ' ')} · {item.machine}
+                    </div>
+                    <div className="text-sm font-semibold mb-0.5">{item.title}</div>
+                    <p className="text-sm text-[var(--color-text-secondary)] whitespace-pre-wrap line-clamp-3">{item.text}</p>
+                  </div>
+                ))}
+                {timeline.length === 0 && <p className="text-sm text-[var(--color-text-tertiary)]">Nothing matched.</p>}
+              </div>
             )}
 
             <h2 className="text-xs uppercase tracking-wide text-[var(--color-text-tertiary)] mb-3 mt-7">History</h2>

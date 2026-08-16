@@ -1,6 +1,6 @@
 export default {
   appName: 'Mímir',
-  nav: { timeline: 'Timeline', search: 'Hľadanie', projects: 'Projekty', threads: 'Vlákna', recall: 'AI Recall' },
+  nav: { timeline: 'Timeline', search: 'Hľadanie', projects: 'Projekty', threads: 'Vlákna', recall: 'AI Recall', terminal: 'Terminál' },
   login: {
     title: 'Mímir',
     subtitle: 'Tvoja osobná kronika',

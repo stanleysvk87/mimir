@@ -8,6 +8,7 @@ import Search from './pages/Search.jsx'
 import Projects from './pages/Projects.jsx'
 import Threads from './pages/Threads.jsx'
 import Recall from './pages/Recall.jsx'
+import Terminal from './pages/Terminal.jsx'
 
 function RequireAuth({ children }) {
   const [state, setState] = useState('checking') // checking | ok | out
@@ -57,6 +58,7 @@ function Shell({ children }) {
           <NavItem to="/projects">{t.nav.projects}</NavItem>
           <NavItem to="/threads">{t.nav.threads}</NavItem>
           <NavItem to="/recall">{t.nav.recall}</NavItem>
+          <NavItem to="/terminal">{t.nav.terminal}</NavItem>
         </nav>
         <div className="mt-auto flex gap-1 text-xs text-[var(--color-text-tertiary)]">
           <button
@@ -95,6 +97,7 @@ export default function App() {
       <Route path="/projects" element={<Protected><Projects /></Protected>} />
       <Route path="/threads" element={<Protected><Threads /></Protected>} />
       <Route path="/recall" element={<Protected><Recall /></Protected>} />
+      <Route path="/terminal" element={<Protected><Terminal /></Protected>} />
     </Routes>
   )
 }
