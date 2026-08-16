@@ -66,6 +66,39 @@ def _matching_entries(question: str, day: str | None, project_id: int | None, li
     return _run_query(fallback_clauses, params[len(stems) * 3 :], min(limit, 20))
 
 
+def _matching_chunks(question: str, day: str | None, project_id: int | None, limit: int) -> list[dict]:
+    """Terminal-archive counterpart to _matching_entries. Uses real FTS5
+    MATCH (not the LIKE-prefix trick above) since terminal_chunks_fts
+    already exists and is cheap to query -- and it can only ever return
+    needs_review=0 chunks, by construction (see db.py's FTS triggers), so
+    a quarantined password/token can never end up inside an AI prompt."""
+    words = [w.strip(".,!?:;") for w in question.split() if len(w.strip(".,!?:;")) >= 3]
+    if not words:
+        return []
+    match = " OR ".join('"' + w.replace('"', '""') + '"' for w in words)
+    clauses = ["terminal_chunks_fts MATCH ?"]
+    params: list = [match]
+    if day:
+        clauses.append("c.started_at LIKE ?")
+        params.append(f"{day}%")
+    if project_id is not None:
+        clauses.append("s.project_id = ?")
+        params.append(project_id)
+    where = " AND ".join(clauses)
+    sql = f"""
+        SELECT c.started_at, c.text, s.host, s.tmux_session_name, p.name AS project_name
+        FROM terminal_chunks_fts
+        JOIN terminal_chunks c ON c.id = terminal_chunks_fts.rowid
+        JOIN terminal_sessions s ON s.id = c.session_id
+        LEFT JOIN projects p ON p.id = s.project_id
+        WHERE {where}
+        ORDER BY c.started_at ASC LIMIT ?
+    """
+    with get_conn() as conn:
+        rows = conn.execute(sql, [*params, limit]).fetchall()
+    return [dict(r) for r in rows]
+
+
 @router.get("/status")
 def status():
     return ai_status()
@@ -74,14 +107,15 @@ def status():
 @router.post("/recall")
 def recall(payload: RecallRequest):
     entries = _matching_entries(payload.question, payload.day, payload.project_id, payload.limit)
-    if not entries:
+    chunks = _matching_chunks(payload.question, payload.day, payload.project_id, payload.limit)
+    if not entries and not chunks:
         return {"answer": "No entries matched that question.", "matched_count": 0}
     try:
         provider = get_provider()
-        answer = provider.complete(build_recall_prompt(payload.question, entries))
+        answer = provider.complete(build_recall_prompt(payload.question, entries, chunks))
     except AIEngineError as exc:
-        return {"answer": f"AI unavailable: {exc}", "matched_count": len(entries)}
-    return {"answer": answer, "matched_count": len(entries)}
+        return {"answer": f"AI unavailable: {exc}", "matched_count": len(entries) + len(chunks)}
+    return {"answer": answer, "matched_count": len(entries), "matched_chunk_count": len(chunks)}
 
 
 @router.get("/digest")

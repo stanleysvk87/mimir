@@ -136,6 +136,89 @@ CREATE TABLE IF NOT EXISTS app_settings (
     key TEXT PRIMARY KEY,
     value TEXT NOT NULL
 );
+
+-- tmux-archive: one row per captured tmux pane (see ~/scripts/tmux-archive-*
+-- on opi/victus, not part of this repo). redaction_status is session-level
+-- bookkeeping only ('pending'/'ingested') -- the real quarantine gate is
+-- per-chunk (terminal_chunks.needs_review), since a whole multi-hour
+-- session shouldn't be hidden from search just because one chunk in it
+-- had a password typed into it.
+CREATE TABLE IF NOT EXISTS terminal_sessions (
+    id INTEGER PRIMARY KEY AUTOINCREMENT,
+    host TEXT NOT NULL DEFAULT '',
+    tmux_session_name TEXT NOT NULL DEFAULT '',
+    pane_id TEXT NOT NULL DEFAULT '',
+    project_id INTEGER REFERENCES projects(id) ON DELETE SET NULL,
+    title TEXT NOT NULL DEFAULT '',
+    started_at TEXT NOT NULL,
+    ended_at TEXT,
+    redaction_status TEXT NOT NULL DEFAULT 'pending',
+    created_at TEXT NOT NULL,
+    updated_at TEXT NOT NULL
+);
+
+CREATE INDEX IF NOT EXISTS idx_terminal_sessions_started ON terminal_sessions(started_at);
+CREATE INDEX IF NOT EXISTS idx_terminal_sessions_project ON terminal_sessions(project_id);
+
+CREATE TABLE IF NOT EXISTS terminal_chunks (
+    id INTEGER PRIMARY KEY AUTOINCREMENT,
+    session_id INTEGER NOT NULL REFERENCES terminal_sessions(id) ON DELETE CASCADE,
+    chunk_index INTEGER NOT NULL,
+    started_at TEXT NOT NULL,
+    ended_at TEXT NOT NULL,
+    command_hint TEXT NOT NULL DEFAULT '',
+    text TEXT NOT NULL DEFAULT '',
+    redacted INTEGER NOT NULL DEFAULT 0,
+    needs_review INTEGER NOT NULL DEFAULT 0,
+    created_at TEXT NOT NULL
+);
+
+CREATE INDEX IF NOT EXISTS idx_terminal_chunks_session_id ON terminal_chunks(session_id);
+CREATE INDEX IF NOT EXISTS idx_terminal_chunks_needs_review ON terminal_chunks(needs_review);
+
+-- Same external-content FTS5 pattern as entries_fts. Chunks with
+-- needs_review=1 (redaction touched them, not yet human-approved) are
+-- deliberately kept OUT of the index by the triggers below -- quarantine
+-- means "not even findable by search", not just "flagged".
+CREATE VIRTUAL TABLE IF NOT EXISTS terminal_chunks_fts USING fts5(
+    text, command_hint,
+    content='terminal_chunks', content_rowid='id',
+    tokenize="unicode61 remove_diacritics 2"
+);
+
+CREATE TRIGGER IF NOT EXISTS terminal_chunks_ai AFTER INSERT ON terminal_chunks
+WHEN new.needs_review = 0
+BEGIN
+    INSERT INTO terminal_chunks_fts(rowid, text, command_hint)
+    VALUES (new.id, new.text, new.command_hint);
+END;
+
+CREATE TRIGGER IF NOT EXISTS terminal_chunks_ad AFTER DELETE ON terminal_chunks
+WHEN old.needs_review = 0
+BEGIN
+    INSERT INTO terminal_chunks_fts(terminal_chunks_fts, rowid, text, command_hint)
+    VALUES ('delete', old.id, old.text, old.command_hint);
+END;
+
+-- Split into two update triggers (rather than one with both delete+insert)
+-- so each can be independently guarded: remove the old FTS row only if it
+-- was actually indexed, add the new one only if it's now clean. Covers
+-- clean-edit (reindex), clean->quarantine (drop from index),
+-- quarantine->clean (the review-approval path -- add to index), and
+-- quarantine->quarantine (no-op) correctly.
+CREATE TRIGGER IF NOT EXISTS terminal_chunks_au_remove AFTER UPDATE ON terminal_chunks
+WHEN old.needs_review = 0
+BEGIN
+    INSERT INTO terminal_chunks_fts(terminal_chunks_fts, rowid, text, command_hint)
+    VALUES ('delete', old.id, old.text, old.command_hint);
+END;
+
+CREATE TRIGGER IF NOT EXISTS terminal_chunks_au_add AFTER UPDATE ON terminal_chunks
+WHEN new.needs_review = 0
+BEGIN
+    INSERT INTO terminal_chunks_fts(rowid, text, command_hint)
+    VALUES (new.id, new.text, new.command_hint);
+END;
 """
 
 

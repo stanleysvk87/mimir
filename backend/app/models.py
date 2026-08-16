@@ -154,3 +154,61 @@ class ChecklistItemOut(BaseModel):
     resolved_at: str | None
     created_at: str
     updated_at: str
+
+
+class TerminalChunkIn(BaseModel):
+    """`redacted`/`needs_review` are set by the ingest script (tmux-archive),
+    never recomputed server-side -- the redaction pass has to happen before
+    the text leaves the machine, not after."""
+
+    started_at: str
+    ended_at: str
+    command_hint: str = ""
+    text: str
+    redacted: bool = False
+    needs_review: bool = False
+
+
+class TerminalSessionIn(BaseModel):
+    host: str = ""
+    tmux_session_name: str = ""
+    pane_id: str = ""
+    project_id: int | None = None
+    title: str = ""
+    started_at: str
+    ended_at: str | None = None
+    chunks: list[TerminalChunkIn] = []
+
+
+class TerminalChunkOut(BaseModel):
+    id: int
+    session_id: int
+    chunk_index: int
+    started_at: str
+    ended_at: str
+    command_hint: str
+    text: str
+    redacted: bool
+    needs_review: bool
+    created_at: str
+
+
+class TerminalSessionOut(BaseModel):
+    id: int
+    host: str
+    tmux_session_name: str
+    pane_id: str
+    project_id: int | None
+    project_name: str | None = None
+    title: str
+    started_at: str
+    ended_at: str | None
+    redaction_status: str
+    chunk_count: int = 0
+    needs_review_count: int = 0
+    created_at: str
+    updated_at: str
+
+
+class TerminalChunkApprove(BaseModel):
+    text: str | None = None

@@ -13,6 +13,7 @@ from app.routes_auth import router as auth_router
 from app.routes_checklist import router as checklist_router
 from app.routes_entries import router as entries_router
 from app.routes_projects import router as projects_router
+from app.routes_terminal import router as terminal_router
 from app.routes_threads import router as threads_router
 
 app = FastAPI(title="mimir")
@@ -35,6 +36,7 @@ app.include_router(projects_router)
 app.include_router(checklist_router)
 app.include_router(threads_router)
 app.include_router(ai_router)
+app.include_router(terminal_router)
 
 
 @app.on_event("startup")
