@@ -2,7 +2,7 @@ from datetime import datetime, timezone
 
 from fastapi import APIRouter, Depends, HTTPException
 
-from app.auth import require_auth
+from app.auth import require_admin, require_auth
 from app.db import get_conn
 from app.models import BulkImportRequest, EntryIn, EntryOut, EntrySearchRequest, EntryUpdate
 
@@ -288,7 +288,7 @@ def update_entry(entry_id: int, payload: EntryUpdate):
     return get_entry(entry_id)
 
 
-@router.delete("/{entry_id}")
+@router.delete("/{entry_id}", dependencies=[Depends(require_admin)])
 def delete_entry(entry_id: int):
     with get_conn() as conn:
         conn.execute("DELETE FROM entries WHERE id = ?", (entry_id,))

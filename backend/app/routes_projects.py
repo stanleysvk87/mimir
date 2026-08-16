@@ -4,7 +4,7 @@ from fastapi import APIRouter, Depends, HTTPException
 
 from app.ai_engine import AIEngineError, get_provider
 from app.ai_engine.prompts import build_handoff_prompt
-from app.auth import require_auth
+from app.auth import require_admin, require_auth
 from app.db import get_conn
 from app.models import ProjectIn, ProjectListOut, ProjectOut, ProjectUpdate
 
@@ -89,7 +89,7 @@ def update_project(project_id: int, payload: ProjectUpdate):
     return get_project(project_id)
 
 
-@router.delete("/{project_id}")
+@router.delete("/{project_id}", dependencies=[Depends(require_admin)])
 def delete_project(project_id: int):
     with get_conn() as conn:
         conn.execute("DELETE FROM projects WHERE id = ?", (project_id,))

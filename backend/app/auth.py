@@ -118,3 +118,32 @@ def require_auth(request: Request) -> None:
     token = request.cookies.get(COOKIE_NAME)
     if not session_valid(token):
         raise HTTPException(status_code=401, detail="Login required")
+
+
+ADMIN_HEADER = "X-Admin-Password"
+
+
+def require_admin(request: Request) -> None:
+    """Gate for destructive endpoints (DELETE routes) -- deliberately a
+    *second*, separate secret from the normal login, not the same
+    password checked a second time. The idea (2026-08-16): the everyday
+    session password -- the one you'd hand to someone taking over a
+    project -- should never by itself be enough to delete anything.
+    Deletion needs MIMIR_ADMIN_PASSWORD, sent as the X-Admin-Password
+    header, kept separately.
+
+    This is an app-level guard, not a real security boundary -- anyone
+    with shell/SQL access to the host can delete rows directly regardless
+    of this check. It protects against an accidental or under-privileged
+    delete through the API/UI, nothing more.
+
+    Opt-in like MIMIR_AUTH_DISABLED above: if MIMIR_ADMIN_PASSWORD isn't
+    set, deletes behave exactly as before (require_auth only) rather than
+    silently locking out an existing deployment that hasn't configured
+    one yet."""
+    admin_password = os.environ.get("MIMIR_ADMIN_PASSWORD", "")
+    if not admin_password:
+        return
+    supplied = request.headers.get(ADMIN_HEADER, "")
+    if not hmac.compare_digest(supplied, admin_password):
+        raise HTTPException(status_code=403, detail="Admin password required to delete")

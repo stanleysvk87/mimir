@@ -3,6 +3,11 @@ services:
     build: ./backend
     environment:
       MIMIR_PASSWORD: ${MIMIR_PASSWORD:?set MIMIR_PASSWORD in .env}
+      # Separate secret from the login password -- required (as the
+      # X-Admin-Password header) on every DELETE endpoint. Not set = no
+      # extra gate (deletes behave as before), opt-in like
+      # MIMIR_AUTH_DISABLED below.
+      MIMIR_ADMIN_PASSWORD: ${MIMIR_ADMIN_PASSWORD:-}
       # Temporary bypass of the login screen entirely -- see auth.py.
       MIMIR_AUTH_DISABLED: ${MIMIR_AUTH_DISABLED:-false}
       # "auto" tries claude CLI, then codex CLI, then the Anthropic API key

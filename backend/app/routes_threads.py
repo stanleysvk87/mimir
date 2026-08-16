@@ -3,7 +3,7 @@ from datetime import datetime, timezone
 from fastapi import APIRouter, Depends, HTTPException
 from pydantic import BaseModel
 
-from app.auth import require_auth
+from app.auth import require_admin, require_auth
 from app.db import get_conn
 
 router = APIRouter(prefix="/api/threads", tags=["threads"], dependencies=[Depends(require_auth)])
@@ -82,7 +82,7 @@ def remove_entry_from_thread(thread_id: int, entry_id: int):
     return {"ok": True}
 
 
-@router.delete("/{thread_id}")
+@router.delete("/{thread_id}", dependencies=[Depends(require_admin)])
 def delete_thread(thread_id: int):
     with get_conn() as conn:
         conn.execute("DELETE FROM threads WHERE id = ?", (thread_id,))

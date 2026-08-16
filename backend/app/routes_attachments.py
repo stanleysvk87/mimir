@@ -5,7 +5,7 @@ from pathlib import Path
 from fastapi import APIRouter, Depends, HTTPException, UploadFile
 from fastapi.responses import FileResponse
 
-from app.auth import require_auth
+from app.auth import require_admin, require_auth
 from app.db import get_conn
 
 router = APIRouter(prefix="/api/entries", tags=["attachments"], dependencies=[Depends(require_auth)])
@@ -81,7 +81,7 @@ def get_attachment_file(entry_id: int, attachment_id: int):
     return FileResponse(path, media_type=row["mime_type"] or None)
 
 
-@router.delete("/{entry_id}/attachments/{attachment_id}")
+@router.delete("/{entry_id}/attachments/{attachment_id}", dependencies=[Depends(require_admin)])
 def delete_attachment(entry_id: int, attachment_id: int):
     with get_conn() as conn:
         row = conn.execute(

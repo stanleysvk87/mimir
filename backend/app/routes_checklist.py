@@ -2,7 +2,7 @@ from datetime import datetime, timezone
 
 from fastapi import APIRouter, Depends
 
-from app.auth import require_auth
+from app.auth import require_admin, require_auth
 from app.db import get_conn
 from app.models import ChecklistItemIn, ChecklistItemOut, ChecklistItemUpdate
 
@@ -65,7 +65,7 @@ def update_item(item_id: int, payload: ChecklistItemUpdate):
     return dict(row)
 
 
-@router.delete("/{item_id}")
+@router.delete("/{item_id}", dependencies=[Depends(require_admin)])
 def delete_item(item_id: int):
     with get_conn() as conn:
         conn.execute("DELETE FROM checklist_items WHERE id = ?", (item_id,))

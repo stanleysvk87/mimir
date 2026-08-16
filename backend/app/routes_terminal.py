@@ -2,7 +2,7 @@ from datetime import datetime, timezone
 
 from fastapi import APIRouter, Depends, HTTPException
 
-from app.auth import require_auth
+from app.auth import require_admin, require_auth
 from app.db import get_conn
 from app.models import (
     TerminalChunkApprove,
@@ -194,7 +194,7 @@ def approve_chunk(chunk_id: int, payload: TerminalChunkApprove):
     return _chunk_row_to_out(row)
 
 
-@router.delete("/sessions/{session_id}")
+@router.delete("/sessions/{session_id}", dependencies=[Depends(require_admin)])
 def delete_session(session_id: int):
     with get_conn() as conn:
         conn.execute("DELETE FROM terminal_sessions WHERE id = ?", (session_id,))
