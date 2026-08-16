@@ -2,7 +2,7 @@ from datetime import datetime, timezone
 
 from fastapi import APIRouter, Depends, HTTPException
 
-from app.ai_engine import AIEngineError, get_provider
+from app.ai_engine import AIEngineError, complete
 from app.ai_engine.prompts import build_handoff_prompt
 from app.auth import require_admin, require_auth
 from app.db import get_conn
@@ -221,8 +221,7 @@ def project_handoff(project_id: int, limit: int = 120):
         return {"briefing": "Nothing recorded for this project yet.", "item_count": 0}
 
     try:
-        provider = get_provider()
-        text = provider.complete(
+        text, _provider_name = complete(
             build_handoff_prompt(project["name"], project["notes"], timeline, open_checklist)
         )
     except AIEngineError as exc:

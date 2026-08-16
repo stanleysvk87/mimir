@@ -2,13 +2,24 @@ import os
 import shutil
 
 from app.settings_store import get_setting
+from midgard_ai_engine import (
+    AIEngineError,
+    AIProvider,
+    AnthropicAPIProvider,
+    ClaudeCLIProvider,
+    CodexCLIProvider,
+    ProviderUnavailableError,
+    complete_via_chain,
+)
 
-from .anthropic_api import AnthropicAPIProvider
-from .base import AIProvider, AIEngineError
-from .claude_cli import ClaudeCLIProvider
-from .codex_cli import CodexCLIProvider
-
-__all__ = ["AIProvider", "AIEngineError", "get_provider", "get_provider_chain", "ai_status"]
+__all__ = [
+    "AIProvider",
+    "AIEngineError",
+    "ProviderUnavailableError",
+    "complete",
+    "get_provider_chain",
+    "ai_status",
+]
 
 
 def _claude_cli() -> AIProvider | None:
@@ -43,14 +54,13 @@ def get_provider_chain() -> list[AIProvider]:
     return [p for p in candidates if p is not None]
 
 
-def get_provider() -> AIProvider:
-    chain = get_provider_chain()
-    if not chain:
-        raise AIEngineError(
-            "No AI provider available -- install/log in to the claude or codex "
-            "CLI on the host, or set MIMIR_ANTHROPIC_API_KEY."
-        )
-    return chain[0]
+def complete(prompt: str) -> tuple[str, str]:
+    """Runs `prompt` through the provider chain, falling through to the
+    next candidate when one is unavailable (was previously always just
+    chain[0] with no fallback -- a provider going down meant every AI
+    feature failed even when a working fallback was configured right
+    behind it). Returns (response_text, provider_name)."""
+    return complete_via_chain(get_provider_chain(), prompt)
 
 
 def ai_status() -> dict:

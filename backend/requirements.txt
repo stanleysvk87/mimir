@@ -1,5 +1,6 @@
 fastapi>=0.139.2,<0.140
 uvicorn[standard]>=0.30
+midgard-ai-engine @ https://github.com/stanleysvk87/midgard-ai-engine/archive/refs/heads/main.tar.gz
 pydantic>=2.13.4
 anthropic>=0.40
 python-multipart>=0.0.9

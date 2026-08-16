@@ -3,7 +3,7 @@ from datetime import datetime, timedelta, timezone
 from fastapi import APIRouter, Depends
 from pydantic import BaseModel
 
-from app.ai_engine import AIEngineError, ai_status, get_provider
+from app.ai_engine import AIEngineError, ai_status, complete
 from app.ai_engine.prompts import build_digest_prompt, build_recall_prompt
 from app.auth import require_auth
 from app.db import get_conn
@@ -111,8 +111,7 @@ def recall(payload: RecallRequest):
     if not entries and not chunks:
         return {"answer": "No entries matched that question.", "matched_count": 0}
     try:
-        provider = get_provider()
-        answer = provider.complete(build_recall_prompt(payload.question, entries, chunks))
+        answer, _provider_name = complete(build_recall_prompt(payload.question, entries, chunks))
     except AIEngineError as exc:
         return {"answer": f"AI unavailable: {exc}", "matched_count": len(entries) + len(chunks)}
     return {"answer": answer, "matched_count": len(entries), "matched_chunk_count": len(chunks)}
@@ -143,8 +142,7 @@ def digest(days: int = 7):
     if not entries and not (terminal_stats and terminal_stats.get("session_count")):
         return {"digest": "No entries in this period.", "entry_count": 0}
     try:
-        provider = get_provider()
-        text = provider.complete(build_digest_prompt(entries, f"the last {days} days", terminal_stats))
+        text, _provider_name = complete(build_digest_prompt(entries, f"the last {days} days", terminal_stats))
     except AIEngineError as exc:
         return {"digest": f"AI unavailable: {exc}", "entry_count": len(entries)}
     return {"digest": text, "entry_count": len(entries), "terminal_session_count": terminal_stats.get("session_count", 0)}
