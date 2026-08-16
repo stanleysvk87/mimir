@@ -133,12 +133,18 @@ def digest(days: int = 7):
             """,
             (since,),
         ).fetchall()
+        terminal_row = conn.execute(
+            """SELECT count(*) AS session_count, count(DISTINCT project_id) AS project_count
+               FROM terminal_sessions WHERE started_at > ?""",
+            (since,),
+        ).fetchone()
     entries = [dict(r) for r in rows]
-    if not entries:
+    terminal_stats = dict(terminal_row) if terminal_row else None
+    if not entries and not (terminal_stats and terminal_stats.get("session_count")):
         return {"digest": "No entries in this period.", "entry_count": 0}
     try:
         provider = get_provider()
-        text = provider.complete(build_digest_prompt(entries, f"the last {days} days"))
+        text = provider.complete(build_digest_prompt(entries, f"the last {days} days", terminal_stats))
     except AIEngineError as exc:
         return {"digest": f"AI unavailable: {exc}", "entry_count": len(entries)}
-    return {"digest": text, "entry_count": len(entries)}
+    return {"digest": text, "entry_count": len(entries), "terminal_session_count": terminal_stats.get("session_count", 0)}

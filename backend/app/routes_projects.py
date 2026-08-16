@@ -2,6 +2,8 @@ from datetime import datetime, timezone
 
 from fastapi import APIRouter, Depends, HTTPException
 
+from app.ai_engine import AIEngineError, get_provider
+from app.ai_engine.prompts import build_handoff_prompt
 from app.auth import require_auth
 from app.db import get_conn
 from app.models import ProjectIn, ProjectListOut, ProjectOut, ProjectUpdate
@@ -102,23 +104,15 @@ def _fts_match(q: str) -> str:
     return " AND ".join('"' + t.replace('"', '""') + '"' for t in tokens)
 
 
-@router.get("/{project_id}/timeline")
-def project_timeline(
+def _timeline_items(
     project_id: int,
-    q: str | None = None,
-    since: str | None = None,
-    until: str | None = None,
-    limit: int = 300,
-):
-    """The 'return to a project after a year' view: merges entries
-    (written summaries -- including auto-logged git commits, source_type
-    'git_auto') and terminal_chunks (raw command/output history, always
-    needs_review=0 only -- quarantined chunks never surface here either)
-    for one project into a single chronological feed. `q`, if given,
-    filters BOTH sources by the same FTS5 query, so e.g. `?q=core` finds
-    every entry, commit, and terminal excerpt that ever mentioned "core"
-    for this project -- the actual answer to "where did I touch core and
-    when."""
+    q: str | None,
+    since: str | None,
+    until: str | None,
+    limit: int,
+) -> list[dict]:
+    """Core query behind both GET /{id}/timeline and GET /{id}/handoff --
+    see the timeline route's docstring for what this merges and why."""
     entry_clauses = ["e.project_id = ?"]
     entry_params: list = [project_id]
     if q and q.strip():
@@ -181,3 +175,56 @@ def project_timeline(
 
     items.sort(key=lambda i: i["timestamp"])
     return items[:limit]
+
+
+@router.get("/{project_id}/timeline")
+def project_timeline(
+    project_id: int,
+    q: str | None = None,
+    since: str | None = None,
+    until: str | None = None,
+    limit: int = 300,
+):
+    """The 'return to a project after a year' view: merges entries
+    (written summaries -- including auto-logged git commits, source_type
+    'git_auto') and terminal_chunks (raw command/output history, always
+    needs_review=0 only -- quarantined chunks never surface here either)
+    for one project into a single chronological feed. `q`, if given,
+    filters BOTH sources by the same FTS5 query, so e.g. `?q=core` finds
+    every entry, commit, and terminal excerpt that ever mentioned "core"
+    for this project -- the actual answer to "where did I touch core and
+    when."""
+    return _timeline_items(project_id, q, since, until, limit)
+
+
+@router.get("/{project_id}/handoff")
+def project_handoff(project_id: int, limit: int = 120):
+    """The 'colleague quit, someone else picks this up cold' briefing --
+    see build_handoff_prompt for the framing. Pulls the project's own
+    notes, its open checklist items, and its full timeline (entries +
+    git commits + terminal excerpts), and asks the AI provider to turn
+    that into a structured onboarding document rather than a short
+    summary."""
+    with get_conn() as conn:
+        project = conn.execute("SELECT * FROM projects WHERE id = ?", (project_id,)).fetchone()
+        if not project:
+            raise HTTPException(status_code=404, detail="Project not found")
+        checklist_rows = conn.execute(
+            "SELECT text FROM checklist_items WHERE project_id = ? AND status = 'open' ORDER BY created_at",
+            (project_id,),
+        ).fetchall()
+
+    timeline = _timeline_items(project_id, None, None, None, limit)
+    open_checklist = [r["text"] for r in checklist_rows]
+
+    if not timeline and not project["notes"] and not open_checklist:
+        return {"briefing": "Nothing recorded for this project yet.", "item_count": 0}
+
+    try:
+        provider = get_provider()
+        text = provider.complete(
+            build_handoff_prompt(project["name"], project["notes"], timeline, open_checklist)
+        )
+    except AIEngineError as exc:
+        return {"briefing": f"AI unavailable: {exc}", "item_count": len(timeline)}
+    return {"briefing": text, "item_count": len(timeline), "open_checklist_count": len(open_checklist)}

@@ -199,3 +199,17 @@ def delete_session(session_id: int):
     with get_conn() as conn:
         conn.execute("DELETE FROM terminal_sessions WHERE id = ?", (session_id,))
     return {"ok": True}
+
+
+@router.get("/chunks/needs-review/count")
+def needs_review_count():
+    """Size of the redaction review queue -- see
+    ~/scripts/mimir-review-nudge.py, which nudges over ntfy when this
+    grows past a threshold. Without this, a quarantined chunk (real
+    content, just hidden from search until approved) could sit forgotten
+    indefinitely with nothing surfacing that it's waiting."""
+    with get_conn() as conn:
+        (count,) = conn.execute(
+            "SELECT count(*) FROM terminal_chunks WHERE needs_review = 1"
+        ).fetchone()
+    return {"needs_review_count": count}
